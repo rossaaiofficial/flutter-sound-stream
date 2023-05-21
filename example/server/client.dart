@@ -49,11 +49,12 @@ void writeWaveFileHeader(File out, int totalAudioLen, int longSampleRate,
 }
 
 main() {
-  Timer timer;
-  File file, tmp;
-  int dataSize;
+  Timer? timer;
+  File? file, tmp;
+  int? dataSize;
+
   WebSocket.connect('ws://localhost:$_PORT').then((WebSocket ws) {
-    if (ws?.readyState == WebSocket.open) {
+    if (ws.readyState == WebSocket.open) {
       ws.listen(
         (data) {
           if (timer == null) {
@@ -61,23 +62,23 @@ main() {
             final fileName = '$timestamp.wav';
             file = File(fileName);
             tmp = File('$fileName.tmp');
-            file.openWrite();
-            tmp.openWrite();
+            file?.openWrite();
+            tmp?.openWrite();
             dataSize = 0;
             timer = Timer(const Duration(seconds: 5), () {
               print('Timeout!');
-              writeWaveFileHeader(file, dataSize, _sampleRate, 1,
+              writeWaveFileHeader(file!, dataSize!, _sampleRate, 1,
                   _RECORDER_BPP * _sampleRate ~/ 8);
-              file.writeAsBytesSync(tmp.readAsBytesSync(),
+              file?.writeAsBytesSync(tmp!.readAsBytesSync(),
                   flush: true, mode: FileMode.append);
-              tmp.deleteSync();
+              tmp?.deleteSync();
               tmp = null;
               file = null;
               timer = null;
             });
           }
           final Uint8List buff = data;
-          dataSize += buff.lengthInBytes;
+          dataSize = dataSize! + buff.lengthInBytes;
           print(dataSize);
           tmp?.writeAsBytesSync(buff, flush: true, mode: FileMode.append);
         },
