@@ -1,12 +1,9 @@
 part of sound_stream;
 
-class PlayerStream {
-  static final PlayerStream _instance = PlayerStream._internal();
-  factory PlayerStream() => _instance;
+enum AudioOutput { headphones, speaker }
 
-  final _playerStatusController =
-      StreamController<SoundStreamStatus>.broadcast();
-  final _audioStreamController = StreamController<Uint8List>();
+class PlayerStream {
+  factory PlayerStream() => _instance;
 
   PlayerStream._internal() {
     SoundStream();
@@ -16,6 +13,12 @@ class PlayerStream {
       writeChunk(data);
     });
   }
+
+  static final PlayerStream _instance = PlayerStream._internal();
+
+  final _audioStreamController = StreamController<Uint8List>();
+  final _playerStatusController =
+      StreamController<SoundStreamStatus>.broadcast();
 
   /// Initialize Player with specified [sampleRate]
   Future<dynamic> initialize({int sampleRate = 16000, bool showLogs = false}) =>
@@ -36,11 +39,26 @@ class PlayerStream {
   Future<dynamic> writeChunk(Uint8List data) => _methodChannel
       .invokeMethod("writeChunk", <String, dynamic>{"data": data});
 
+  Future<void> setAudioOutput(AudioOutput audioOutput) {
+    return _methodChannel.invokeMethod("setAudioOutput", {
+      "audioOutput": _enumToString(audioOutput),
+    });
+  }
+
   /// Current status of the [PlayerStream]
   Stream<SoundStreamStatus> get status => _playerStatusController.stream;
 
   /// Stream's sink to receive PCM 16bit data to send to Player
   StreamSink<Uint8List> get audioStream => _audioStreamController.sink;
+
+  /// Stop and close all streams. This cannot be undone
+  /// Only call this method if you don't want to use this anymore
+  void dispose() {
+    stop();
+    _eventsStreamController.close();
+    _playerStatusController.close();
+    _audioStreamController.close();
+  }
 
   void _eventListener(dynamic event) {
     if (event == null) return;
@@ -54,14 +72,5 @@ class PlayerStream {
         ));
         break;
     }
-  }
-
-  /// Stop and close all streams. This cannot be undone
-  /// Only call this method if you don't want to use this anymore
-  void dispose() {
-    stop();
-    _eventsStreamController.close();
-    _playerStatusController.close();
-    _audioStreamController.close();
   }
 }

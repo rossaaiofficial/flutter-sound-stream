@@ -3,6 +3,8 @@ package vn.casperpas.sound_stream
 import android.Manifest
 import android.annotation.TargetApi
 import android.app.Activity
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
 import android.media.*
@@ -127,6 +129,7 @@ public class SoundStreamPlugin : FlutterPlugin,
                 "startPlayer" -> startPlayer(result)
                 "stopPlayer" -> stopPlayer(result)
                 "writeChunk" -> writeChunk(call, result)
+                "setAudioOutput" -> setAudioOutput(call, result)
                 else -> result.notImplemented()
             }
         } catch (e: Exception) {
@@ -163,6 +166,37 @@ public class SoundStreamPlugin : FlutterPlugin,
     override fun onDetachedFromActivityForConfigChanges() {
 //        currentActivity = null
     }
+
+    @TargetApi(Build.VERSION_CODES.M)
+    private fun setAudioOutput(call: MethodCall, result: Result) {
+        val audioOutput = call.argument<String>("audioOutput") ?: "speaker"
+        val audioManager = pluginContext?.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+        if (audioOutput == "headphones") {
+            audioManager.isSpeakerphoneOn = !areHeadphonesConnected(audioManager);
+        }
+
+        if (audioOutput == "speaker") {
+            audioManager.isSpeakerphoneOn = true
+        }
+
+        result.success(null)
+    }
+
+     @TargetApi(Build.VERSION_CODES.M)
+     private fun areHeadphonesConnected(audioManager: AudioManager): Boolean {
+         val audioDevices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+    
+         val isWiredHeadsetConnected = audioDevices.any { device ->
+             device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+             device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+         }
+    
+         val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+         val isBluetoothHeadsetConnected = bluetoothAdapter?.getProfileConnectionState(BluetoothProfile.HEADSET) == BluetoothProfile.STATE_CONNECTED
+    
+         return isWiredHeadsetConnected || isBluetoothHeadsetConnected
+     }
 
     /** ======== Plugin methods ======== **/
     private fun hasRecordPermission(): Boolean {
