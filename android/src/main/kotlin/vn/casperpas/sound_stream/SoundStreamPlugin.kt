@@ -32,7 +32,6 @@ import java.nio.ByteOrder
 import java.nio.ShortBuffer
 
 const val methodChannelName = "vn.casperpas.sound_stream:methods"
-const val eventChannelName = "vn.casperpas.sound_stream:event"
 
 enum class SoundStreamErrors {
     FailedToRecord,
@@ -153,6 +152,8 @@ public class SoundStreamPlugin : FlutterPlugin,
 //        currentActivity
     }
 
+
+
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         currentActivity = binding.activity
         binding.addRequestPermissionsResultListener(this)
@@ -199,36 +200,66 @@ public class SoundStreamPlugin : FlutterPlugin,
      }
 
     /** ======== Plugin methods ======== **/
-    private fun hasRecordPermission(): Boolean {
-        if (permissionToRecordAudio) return true
+    private val permissionsToRequest = arrayOf(
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.MODIFY_AUDIO_SETTINGS
+    )
 
+    private val permissionRequestCode = 1
+
+    private fun hasPermissions(): Boolean {
         val localContext = pluginContext
-        permissionToRecordAudio = localContext != null && ContextCompat.checkSelfPermission(localContext,
-                Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        return permissionToRecordAudio
-
+        if (localContext != null) {
+            for (permission in permissionsToRequest) {
+                if (ContextCompat.checkSelfPermission(
+                                localContext,
+                                permission
+                        ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    return false
+                }
+            }
+            return true
+        }
+        return false
     }
 
     private fun hasPermission(result: Result) {
-        result.success(hasRecordPermission())
+        result.success(hasPermissions())
     }
 
-    private fun requestRecordPermission() {
+    private fun requestPermissions() {
         val localActivity = currentActivity
-        if (!hasRecordPermission() && localActivity != null) {
-            debugLog("requesting RECORD_AUDIO permission")
-            ActivityCompat.requestPermissions(localActivity,
-                    arrayOf(Manifest.permission.RECORD_AUDIO), audioRecordPermissionCode)
+        if (localActivity != null && !hasPermissions()) {
+            debugLog("Requesting permissions")
+            ActivityCompat.requestPermissions(
+                    localActivity,
+                    permissionsToRequest,
+                    permissionRequestCode
+            )
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>,
-                                            grantResults: IntArray): Boolean {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ): Boolean {
         when (requestCode) {
-            audioRecordPermissionCode -> {
-                if (grantResults != null) {
-                    permissionToRecordAudio = grantResults.isNotEmpty() &&
-                            grantResults[0] == PackageManager.PERMISSION_GRANTED
+            permissionRequestCode -> {
+                if (grantResults.isNotEmpty()) {
+                    var allPermissionsGranted = true
+                    for (grantResult in grantResults) {
+                        if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                            allPermissionsGranted = false
+                            break
+                        }
+                    }
+                    permissionToRecordAudio = allPermissionsGranted
+                } else {
+                    permissionToRecordAudio = false
                 }
                 completeInitializeRecorder()
                 return true
@@ -236,6 +267,44 @@ public class SoundStreamPlugin : FlutterPlugin,
         }
         return false
     }
+
+//    private fun hasPermissions(): Boolean {
+//        if (permissionToRecordAudio) return true
+//
+//        val localContext = pluginContext
+//        permissionToRecordAudio = localContext != null && ContextCompat.checkSelfPermission(localContext,
+//                Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+//        return permissionToRecordAudio
+//
+//    }
+//
+//    private fun hasPermission(result: Result) {
+//        result.success(hasPermissions())
+//    }
+//
+//    private fun requestPermissions() {
+//        val localActivity = currentActivity
+//        if (!hasPermissions() && localActivity != null) {
+//            debugLog("requesting RECORD_AUDIO permission")
+//            ActivityCompat.requestPermissions(localActivity,
+//                    arrayOf(Manifest.permission.RECORD_AUDIO), audioRecordPermissionCode)
+//        }
+//    }
+//
+//    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>,
+//                                            grantResults: IntArray): Boolean {
+//        when (requestCode) {
+//            audioRecordPermissionCode -> {
+//                if (grantResults != null) {
+//                    permissionToRecordAudio = grantResults.isNotEmpty() &&
+//                            grantResults[0] == PackageManager.PERMISSION_GRANTED
+//                }
+//                completeInitializeRecorder()
+//                return true
+//            }
+//        }
+//        return false
+//    }
 
     private fun initializeRecorder(@NonNull call: MethodCall, @NonNull result: Result) {
         mRecordSampleRate = call.argument<Int>("sampleRate") ?: mRecordSampleRate
@@ -253,7 +322,7 @@ public class SoundStreamPlugin : FlutterPlugin,
         permissionToRecordAudio = ContextCompat.checkSelfPermission(localContext,
                 Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
         if (!permissionToRecordAudio) {
-            requestRecordPermission()
+            requestPermissions()
         } else {
             debugLog("has permission, completing")
             completeInitializeRecorder()
